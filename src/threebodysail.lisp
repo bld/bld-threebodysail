@@ -158,6 +158,18 @@
 	(edit-window-axis w :y :properties (append (list :minor-tick-grid :major-tick-grid) (get-window-axis-properties w :x)))
         (render w "xwin")))))
 
+(defun export-gnuplot-xz (filename sailhash data3d &optional (iy 0))
+  "Export 3D data (sigma or alpha) to Gnuplot compatible surface data file."
+  (with-keys (r12 mu1 mu2 stype ref rc pc xmin xmax xsteps ymin ymax ysteps zmin zmax zsteps) sailhash
+    (with-open-file (s filename :direction :output :if-exists :supersede)
+      (loop for ix below xsteps
+	 for x = (+ xmin (* ix (- xmax xmin)))
+	 do (loop for iz below zsteps
+	       for z = (+ zmin (* iz (- zmax zmin)))
+	       for dataxz = (aref data3d ix iy iz)
+	       do (format s "~&~a~%" (substitute #\E #\d (format nil "~a ~a ~a" x z dataxz))))
+	 do (format s "~%")))))
+
 (defparameter *sun-earth-sail* ; units: MKS
   (make-hash :r12 1.49597870691d11 ; 1 AU
              :mu1 1.3271244d20 ; solar grav param
