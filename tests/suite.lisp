@@ -1,6 +1,6 @@
 (in-package :bld-threebodysail)
 
-(use-package :eos)
+(use-package :fiveam)
 
 (def-suite bld-threebodysail)
 

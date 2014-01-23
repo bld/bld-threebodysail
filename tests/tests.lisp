@@ -1,7 +1,7 @@
-(require :bld-threebodysail)
-(require :eos)
+(ql:quickload :bld-threebodysail)
+(ql:quickload :fiveam)
 (in-package :bld-threebodysail)
-(use-package :eos)
+(use-package :fiveam)
 (def-suite bld-threebodysail)
 (in-suite bld-threebodysail)
 
