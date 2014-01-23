@@ -3,25 +3,32 @@
 (defparameter *double-eps* 1d-10)
 
 (defun is= (a b)
+  "Test if two numbers equal within tolerance"
   (< (abs (- (abs a) (abs b))) *double-eps*))
 
 (defun is> (a b)
+  "Test if A greater than B within tolerance"
   (> (- a b) *double-eps*))
 
 (defun is>= (a b)
+  "Test that A >= B within tolerance"
   (or (is> a b) (is= a b)))
 
 (defmethod coincident ((a ve3) (b ve3))
+  "Test if two vectors are coincident within tolerance"
   (is= (norme2 (*x2 a b)) 0d0))
 
 (defmethod codirectional ((a ve3) (b ve3))
+  "Test if two vectors point in the same direction within tolerance"
   (and (coincident a b)
        (is> (scalar (*i a b)) 0d0)))
 
 (defmethod dot ((a ve3) (b ve3))
+ "Dot product of two vectors"
   (scalar (*i a b)))
 
 (defun gradv (res r12 mu1 mu2)
+  "Gradient of gravitational potential"
   (let* ((mu (/ mu2 (+ mu1 mu2)))
 	 (re1 (ve3 :e1 (* -1 r12 mu)))
 	 (re2 (ve3 :e1 (* r12 (- 1 mu))))
@@ -38,14 +45,17 @@
     (- (+ a1g a2g))))
 
 (defun gradphi (res r12 mu1 mu2)
+ "Gradient of centripetal potential"
   (let ((omee (ve3 :e3 (/ (sqrt (+ mu1 mu2)) (sqrt (expt r12 3))))))
     (*x2 omee (*x2 omee res))))
 
 (defun gradu (res r12 mu1 mu2)
+  "Gradient of combined gravitational/centripetal potential"
   (+ (gradv res r12 mu1 mu2)
      (gradphi res r12 mu1 mu2)))
 
 (defun sailcalcfideal (r1s gradu mu1 stype)
+  "Calculate loading & cone angle for ideal sail at sun-sail vector"
   (let ((r1suv (unitg r1s))
 	(n (unitg gradu)))
     (cond ((is>= (dot r1s gradu) 0d0)
@@ -58,6 +68,7 @@
 	  (t (values 0 0 t)))))
 
 (defun sailcalcideal (sailhash)
+  "Calculate 3D arrays of loading & cone angle over space & parameters defined in hash table"
   (with-keys (r12 mu1 mu2 stype xmin xmax xsteps ymin ymax ysteps zmin zmax zsteps) sailhash
     (let* ((mu (/ mu2 (+ mu1 mu2)))
 	   (re1 (ve3 :e1 (- (* r12 mu))))
