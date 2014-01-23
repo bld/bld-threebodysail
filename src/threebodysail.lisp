@@ -21,15 +21,10 @@
 (defmethod dot ((a ve3) (b ve3))
   (scalar (*i a b)))
 
-(defun get-window-axis-properties (window axis)
-  (cond ((eq axis :x) (slot-value (slot-value window 'cl-plplot::x-axis) 'cl-plplot::properties))
-	((eq axis :y) (slot-value (slot-value window 'cl-plplot::y-axis) 'cl-plplot::properties))
-	(t (warn "Axis must be one of :x or :y") nil)))
-
 (defun gradv (res r12 mu1 mu2)
   (let* ((mu (/ mu2 (+ mu1 mu2)))
-	 (re1 (ve3 :c1 (* -1 r12 mu)))
-	 (re2 (ve3 :c1 (* r12 (- 1 mu))))
+	 (re1 (ve3 :e1 (* -1 r12 mu)))
+	 (re2 (ve3 :e1 (* r12 (- 1 mu))))
 	 (r1s (- res re1))
 	 (r2s (- res re2))
 	 (r1ss (norme r1s))
@@ -43,7 +38,7 @@
     (- (+ a1g a2g))))
 
 (defun gradphi (res r12 mu1 mu2)
-  (let ((omee (ve3 :c100 (/ (sqrt (+ mu1 mu2)) (sqrt (expt r12 3))))))
+  (let ((omee (ve3 :e3 (/ (sqrt (+ mu1 mu2)) (sqrt (expt r12 3))))))
     (*x2 omee (*x2 omee res))))
 
 (defun gradu (res r12 mu1 mu2)
@@ -65,17 +60,17 @@
 (defun sailcalcideal (sailhash)
   (with-keys (r12 mu1 mu2 stype xmin xmax xsteps ymin ymax ysteps zmin zmax zsteps) sailhash
     (let* ((mu (/ mu2 (+ mu1 mu2)))
-	   (re1 (ve3 :c1 (- (* r12 mu))))
-	   (re2 (ve3 :c1 (* r12 (- 1 mu))))
+	   (re1 (ve3 :e1 (- (* r12 mu))))
+	   (re2 (ve3 :e1 (* r12 (- 1 mu))))
 	   (beta3d (make-array (list xsteps ysteps zsteps)))
 	   (alpha3d (make-array (list xsteps ysteps zsteps))))
       (loop for ix below xsteps
-	 for x = (+ xmin (gref re2 #b1) (* (/ (- xmax xmin) xsteps) ix))
+	 for x = (+ xmin (gref re2 :e1) (* (/ (- xmax xmin) xsteps) ix))
 	 do (loop for iy below ysteps
 	       for y = (+ ymin (* (/ (- ymax ymin) ysteps) iy))
 	       do (loop for iz below zsteps
 		     for z = (+ zmin (* (/ (- zmax zmin) zsteps) iz))
-		     for res = (ve3 :c1 x :c10 y :c100 z)
+		     for res = (ve3 :e1 x :e2 y :e3 z)
 		     for gradu = (gradu res r12 mu1 mu2)
 		     for r1s = (- res re1)
 		     for (beta alpha err) = (multiple-value-list (sailcalcfideal r1s gradu mu1 stype))
@@ -84,6 +79,7 @@
       (values beta3d alpha3d))))
 
 (defun sailcalcf (r1s gradu mu1 stype sigma* ref)
+  "Calculate sail loading & cone angle at vector from 1st body (sun) to sail, gravitational parameter of sun, sail stype, critical sail loading, and reflection."
   (let* ((r1suv (unitg r1s))
 	 (m (unitg gradu)))
     (cond ((is>= (dot r1s gradu) 0d0) ; gradu away from sun
@@ -106,7 +102,7 @@
 					  tanphi))
 			     (phi (atan tanphi))
 			     (rmn (rotor (*o r1suv m) phi)) ; rotor to rotate m to n
-			     (n (rot m rmn))
+			     (n (rotateg m rmn))
 			     (beta (* (/ (* 2 (norme2 r1s))
 					 mu1)
 				      (/ (dot gradu n)
@@ -117,19 +113,20 @@
 	  (t (values 0 0 t)))))
 
 (defun sailcalc (sailhash)
+  "Generate 3D arrays of sail loading & cone angles required for equilibrium given hash table of sail problem parameters"
   (with-keys (r12 mu1 mu2 stype sigma* ref xmin xmax xsteps ymin ymax ysteps zmin zmax zsteps) sailhash
     (let* ((mu (/ mu2 (+ mu1 mu2)))
-	   (re1 (ve3 :c1 (- (* r12 mu))))
-	   (re2 (ve3 :c1 (* r12 (- 1 mu))))
+	   (re1 (ve3 :e1 (- (* r12 mu))))
+	   (re2 (ve3 :e1 (* r12 (- 1 mu))))
 	   (sigma3d (make-array (list xsteps ysteps zsteps)))
 	   (alpha3d (make-array (list xsteps ysteps zsteps))))
       (loop for ix below xsteps
-	 for x = (+ xmin (gref re2 #b1) (* (/ (- xmax xmin) xsteps) ix))
+	 for x = (+ xmin (gref re2 :e1) (* (/ (- xmax xmin) xsteps) ix))
 	 do (loop for iy below ysteps
 	       for y = (+ ymin (* (/ (- ymax ymin) ysteps) iy))
 	       do (loop for iz below zsteps
 		     for z = (+ zmin (* (/ (- zmax zmin) zsteps) iz))
-		     for res = (ve3 :c1 x :c10 y :c100 z)
+		     for res = (ve3 :e1 x :e2 y :e3 z)
 		     for gradu = (gradu res r12 mu1 mu2)
 		     for r1s = (- res re1)
 		     for (sigma alpha err) = (multiple-value-list (sailcalcf r1s gradu mu1 stype sigma* ref))
@@ -137,37 +134,16 @@
 		       (setf (aref alpha3d ix iy iz) alpha))))
       (values sigma3d alpha3d))))
 
-(defun plot-sail-xz (sailhash sigma3d alpha3d levels)
-  (with-keys (r12 mu1 mu2 stype ref rc pc xmin xmax xsteps ymin ymax ysteps zmin zmax zsteps) sailhash
-    (let ((sigma2d (make-array (list xsteps zsteps)))
-          (alpha2d (make-array (list xsteps zsteps)))
-	  (alphalevels (map 'vector #'identity
-			    (loop for d = 10 then (+ d 10)
-			       while (< d 90)
-			       collect (* d (/ pi 180))))))
-      (dotimes (i xsteps)
-        (dotimes (j zsteps)
-          (setf (aref sigma2d i j) (aref sigma3d i 0 j))
-          (setf (aref alpha2d i j) (aref alpha3d i 0 j))))
-      (let ((sigma (new-contour-plot sigma2d :x-min xmin :x-max xmax :y-min zmin :y-max zmax :fill-type :none :contour-levels levels))
-	    (alpha (new-contour-plot alpha2d :x-min xmin :x-max xmax :y-min zmin :y-max zmax :fill-type :none :contour-levels alphalevels))
-            (w (basic-window)))
-        (add-plot-to-window w sigma)
-;;        (add-plot-to-window w alpha)
-	(edit-window-axis w :x :properties (append (list :minor-tick-grid :major-tick-grid) (get-window-axis-properties w :x)))
-	(edit-window-axis w :y :properties (append (list :minor-tick-grid :major-tick-grid) (get-window-axis-properties w :x)))
-        (render w "xwin")))))
-
-(defun export-gnuplot-xz (filename sailhash data3d &optional (iy 0))
+(defun export-gnuplot-xz (filename sailhash data3d &key (iy 0) (scale 1d-9))
   "Export 3D data (sigma or alpha) to Gnuplot compatible surface data file."
   (with-keys (r12 mu1 mu2 stype ref rc pc xmin xmax xsteps ymin ymax ysteps zmin zmax zsteps) sailhash
     (with-open-file (s filename :direction :output :if-exists :supersede)
       (loop for ix below xsteps
-	 for x = (+ xmin (* ix (- xmax xmin)))
+	 for x = (* scale (+ xmin (* (/ (- xmax xmin) xsteps) ix)))
 	 do (loop for iz below zsteps
-	       for z = (+ zmin (* iz (- zmax zmin)))
+	       for z = (* scale (+ zmin (* (/ (- zmax zmin) zsteps) iz)))
 	       for dataxz = (aref data3d ix iy iz)
-	       do (format s "~&~a~%" (substitute #\E #\d (format nil "~a ~a ~a" x z dataxz))))
+	       do (format s "~f ~f ~f~%" x z dataxz))
 	 do (format s "~%")))))
 
 (defparameter *sun-earth-sail* ; units: MKS

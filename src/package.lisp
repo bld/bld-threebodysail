@@ -1,5 +1,5 @@
 (defpackage :bld-threebodysail
-  (:use :cl :bld-e3 :bld-ga :cl-plplot)
+  (:use :cl :bld-e3 :bld-ga)
   (:shadowing-import-from bld-gen
 			  + - * / expt
 			  sin cos tan
