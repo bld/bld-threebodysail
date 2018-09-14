@@ -125,35 +125,40 @@
 
 (defun sailcalc (sailhash)
   "Generate 3D arrays of sail loading & cone angles required for equilibrium given hash table of sail problem parameters"
-  (with-keys (r12 mu1 mu2 stype sigma* ref xmin xmax xsteps ymin ymax ysteps zmin zmax zsteps) sailhash
+  (with-keys (r12 mu1 mu2 stype sigma* ref xmin xmax xsteps ymin ymax ysteps zmin zmax zsteps pc) sailhash
     (let* ((mu (/ mu2 (+ mu1 mu2)))
 	   (re1 (ve3 :e1 (- (* r12 mu))))
 	   (re2 (ve3 :e1 (* r12 (- 1 mu))))
-	   (sigma3d (make-array (list xsteps ysteps zsteps)))
-	   (alpha3d (make-array (list xsteps ysteps zsteps))))
-      (loop for ix below xsteps
+	   (sigma3d (make-array (list (1+ xsteps) (1+ ysteps) (1+ zsteps))))
+	   (alpha3d (make-array (list (1+ xsteps) (1+ ysteps) (1+ zsteps))))
+	   (ac3d (make-array (list (1+ xsteps) (1+ ysteps) (1+ zsteps)))))
+      (loop for ix upto xsteps
 	 for x = (+ xmin (gref re2 :e1) (* (/ (- xmax xmin) xsteps) ix))
-	 do (loop for iy below ysteps
+	 do (loop for iy upto ysteps
 	       for y = (+ ymin (* (/ (- ymax ymin) ysteps) iy))
-	       do (loop for iz below zsteps
+	       do (loop for iz upto zsteps
 		     for z = (+ zmin (* (/ (- zmax zmin) zsteps) iz))
 		     for res = (ve3 :e1 x :e2 y :e3 z)
 		     for gradu = (gradu res r12 mu1 mu2)
 		     for r1s = (- res re1)
 		     for (sigma alpha err) = (multiple-value-list (sailcalcf r1s gradu mu1 stype sigma* ref))
-		     do (setf (aref sigma3d ix iy iz) sigma)
-		       (setf (aref alpha3d ix iy iz) alpha))))
-      (values sigma3d alpha3d))))
+		     for ac = (if (> sigma 0)
+				  (* (/ (* 2 ref pc) (/ sigma 1000)) 1000)
+				  1e6)
+		     do (setf (aref sigma3d ix iy iz) sigma
+			      (aref alpha3d ix iy iz) alpha
+			      (aref ac3d ix iy iz) ac))))
+      (values sigma3d alpha3d ac3d))))
 
-(defun export-gnuplot-xz (filename sailhash data3d &key (iy 0) (scale 1d-9))
+(defun export-gnuplot-xz (filename sailhash data3d &key (iy 0) (xyzscale 1d-9) (datascale 1d0))
   "Export 3D data (sigma or alpha) to Gnuplot compatible surface data file."
   (with-keys (r12 mu1 mu2 stype ref rc pc xmin xmax xsteps ymin ymax ysteps zmin zmax zsteps) sailhash
     (with-open-file (s filename :direction :output :if-exists :supersede)
-      (loop for ix below xsteps
-	 for x = (* scale (+ xmin (* (/ (- xmax xmin) xsteps) ix)))
-	 do (loop for iz below zsteps
-	       for z = (* scale (+ zmin (* (/ (- zmax zmin) zsteps) iz)))
-	       for dataxz = (aref data3d ix iy iz)
+      (loop for ix upto xsteps
+	 for x = (* xyzscale (+ xmin (* (/ (- xmax xmin) xsteps) ix)))
+	 do (loop for iz upto zsteps
+	       for z = (* xyzscale (+ zmin (* (/ (- zmax zmin) zsteps) iz)))
+	       for dataxz = (* datascale (aref data3d ix iy iz))
 	       do (format s "~f ~f ~f~%" x z dataxz))
 	 do (format s "~%")))))
 
@@ -195,3 +200,22 @@
              :zmax 0.8d9
              :zsteps 100
 	     :sigmalevels #(1d-6 26 44 46 48)))
+
+(defparameter *sun-earth-sail-subl1* ; units: MKS
+  (make-hash :r12 1.49597870691d11 ; 1 AU
+             :mu1 1.3271244d20 ; solar grav param
+             :mu2 3.986d14 ; Earth grav param
+             :stype 2 ; flat sail: 2, compound sail: 1
+             :ref 0.85d0 ; reflectivity
+	     :sigma* 1.53 ; g/m^2
+             :rc 1.49597870691d11
+             :pc 4.563d-6
+             :xmin -3d9
+             :xmax 0d9
+             :xsteps 200
+             :ymin 0d0
+             :ymax 0d0
+             :ysteps 1
+             :zmin -2d9
+             :zmax 2d9
+             :zsteps 100))
