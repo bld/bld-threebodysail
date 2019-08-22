@@ -143,7 +143,7 @@
 		     for r1s = (- res re1)
 		     for (sigma alpha err) = (multiple-value-list (sailcalcf r1s gradu mu1 stype sigma* ref))
 		     for ac = (if (> sigma 0)
-				  (* (/ (* 2 ref pc) (/ sigma 1000)) 1000)
+				  (* (/ (* (+ 1 ref) pc) (/ sigma 1000)) 1000)
 				  1e6)
 		     do (setf (aref sigma3d ix iy iz) sigma
 			      (aref alpha3d ix iy iz) alpha
